@@ -1,7 +1,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from core.config_store import config_store
-from services.mail_imports import MailImportExecuteRequest, MailImportSnapshotRequest, mail_import_registry
+from services.mail_imports import (
+    MailImportExecuteRequest,
+    MailImportSnapshotRequest,
+    mail_import_registry,
+)
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -81,6 +85,7 @@ CONFIG_KEYS = [
     "cpa_cleanup_threshold",
     "cpa_cleanup_concurrency",
     "cpa_cleanup_register_delay_seconds",
+    "cpa_cleanup_chatgpt_registration_mode",
     "sub2api_enabled",
     "sub2api_api_url",
     "sub2api_api_key",
@@ -152,6 +157,8 @@ def get_config():
         all_cfg["email_domain_rule_enabled"] = "0"
     if not str(all_cfg.get("email_domain_level_count", "") or "").strip():
         all_cfg["email_domain_level_count"] = "2"
+    if not all_cfg.get("cpa_cleanup_chatgpt_registration_mode"):
+        all_cfg["cpa_cleanup_chatgpt_registration_mode"] = "access_token_only"
     # 只返回已知 key，未设置的返回空字符串
     return {k: all_cfg.get(k, "") for k in CONFIG_KEYS}
 

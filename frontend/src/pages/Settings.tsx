@@ -14,6 +14,11 @@ import {
   LockOutlined,
 } from '@ant-design/icons'
 import { parseBooleanConfigValue } from '@/lib/configValueParsers'
+import { ChatGPTRegistrationModeSwitch } from '@/components/ChatGPTRegistrationModeSwitch'
+import {
+  CHATGPT_REGISTRATION_MODE_ACCESS_TOKEN_ONLY,
+  normalizeChatGPTRegistrationMode,
+} from '@/lib/chatgptRegistrationMode'
 import MailImportPanel from '@/components/settings/MailImportPanel'
 import { apiFetch } from '@/lib/utils'
 
@@ -284,6 +289,7 @@ const TAB_ITEMS = [
         desc: '定时删除 status=error 的凭证，剩余数量低于阈值时自动按现有配置补注册 ChatGPT',
         fields: [
           { key: 'cpa_cleanup_enabled', label: '自动维护', type: 'select' },
+          { key: 'cpa_cleanup_chatgpt_registration_mode', label: '补注册方案' },
           { key: 'cpa_cleanup_interval_minutes', label: '检查间隔（分钟）', placeholder: '60' },
           { key: 'cpa_cleanup_threshold', label: '最低凭证阈值', placeholder: '5' },
           { key: 'cpa_cleanup_concurrency', label: '补注册并发数', placeholder: '1' },
@@ -576,6 +582,8 @@ function ConfigField({ field }: { field: FieldConfig }) {
       ? '仅 CF Worker 生效：开启后会校验域名级数，以及域名至少包含 2 个字母和 2 个数字。'
       : field.key === 'email_domain_level_count'
       ? '例如 2=example.com，3=a.example.com，4=a.b.example.com。'
+      : field.key === 'cpa_cleanup_chatgpt_registration_mode'
+      ? 'GPT back auto CPA 自动维护补注册时使用的 Token 方案；默认走兼容旧方案 无 RT。'
       : undefined
 
   return (
@@ -585,7 +593,9 @@ function ConfigField({ field }: { field: FieldConfig }) {
       extra={helpText}
       valuePropName={isBooleanField ? 'checked' : undefined}
     >
-      {options ? (
+      {field.key === 'cpa_cleanup_chatgpt_registration_mode' ? (
+        <ChatGPTRegistrationModeConfigField />
+      ) : options ? (
         <Select options={options} style={{ width: '100%' }} />
       ) : isBooleanField ? (
         <Switch checkedChildren="开启" unCheckedChildren="关闭" />
@@ -602,6 +612,23 @@ function ConfigField({ field }: { field: FieldConfig }) {
         <Input placeholder={field.placeholder} />
       )}
     </Form.Item>
+  )
+}
+
+function ChatGPTRegistrationModeConfigField({
+  value,
+  onChange,
+}: {
+  value?: string
+  onChange?: (value: string) => void
+}) {
+  return (
+    <ChatGPTRegistrationModeSwitch
+      mode={normalizeChatGPTRegistrationMode(
+        value || CHATGPT_REGISTRATION_MODE_ACCESS_TOKEN_ONLY,
+      )}
+      onChange={(mode) => onChange?.(mode)}
+    />
   )
 }
 

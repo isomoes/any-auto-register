@@ -6,6 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import requests
+from platforms.chatgpt.chatgpt_registration_mode_adapter import (
+    CHATGPT_REGISTRATION_MODE_ACCESS_TOKEN_ONLY,
+    normalize_chatgpt_registration_mode,
+)
 
 
 DEFAULT_INTERVAL_MINUTES = 60
@@ -22,6 +26,7 @@ class CpaMaintenanceConfig:
     threshold: int
     concurrency: int
     register_delay_seconds: float
+    chatgpt_registration_mode: str
 
 
 def _get_config_store():
@@ -77,6 +82,12 @@ def get_cpa_maintenance_config() -> CpaMaintenanceConfig:
             DEFAULT_REGISTER_DELAY_SECONDS,
             minimum=0.0,
         ),
+        chatgpt_registration_mode=normalize_chatgpt_registration_mode(
+            config_store.get(
+                "cpa_cleanup_chatgpt_registration_mode",
+                CHATGPT_REGISTRATION_MODE_ACCESS_TOKEN_ONLY,
+            )
+        ),
     )
 
 
@@ -106,7 +117,14 @@ def _headers(api_key: str | None = None) -> dict[str, str]:
     return headers
 
 
-def _request(method: str, path: str, *, api_url: str | None = None, api_key: str | None = None, json_body: dict | None = None) -> Any:
+def _request(
+    method: str,
+    path: str,
+    *,
+    api_url: str | None = None,
+    api_key: str | None = None,
+    json_body: dict | None = None,
+) -> Any:
     response = requests.request(
         method,
         f"{_api_base(api_url)}{path}",
@@ -124,13 +142,19 @@ def _request(method: str, path: str, *, api_url: str | None = None, api_key: str
         return response.text
 
 
-def list_auth_files(*, api_url: str | None = None, api_key: str | None = None) -> list[dict[str, Any]]:
-    data = _request("GET", "/v0/management/auth-files", api_url=api_url, api_key=api_key)
+def list_auth_files(
+    *, api_url: str | None = None, api_key: str | None = None
+) -> list[dict[str, Any]]:
+    data = _request(
+        "GET", "/v0/management/auth-files", api_url=api_url, api_key=api_key
+    )
     files = data.get("files", []) if isinstance(data, dict) else []
     return [item for item in files if isinstance(item, dict)]
 
 
-def delete_auth_files(names: list[str], *, api_url: str | None = None, api_key: str | None = None) -> Any:
+def delete_auth_files(
+    names: list[str], *, api_url: str | None = None, api_key: str | None = None
+) -> Any:
     clean_names = [name for name in names if str(name).strip()]
     if not clean_names:
         return {"deleted": 0}
@@ -147,7 +171,8 @@ def _count_remaining(files: list[dict[str, Any]]) -> int:
     return sum(
         1
         for item in files
-        if str(item.get("name", "")).strip() and str(item.get("status", "")).strip().lower() != "error"
+        if str(item.get("name", "")).strip()
+        and str(item.get("status", "")).strip().lower() != "error"
     )
 
 
@@ -156,7 +181,8 @@ def _error_names(files: list[dict[str, Any]]) -> list[str]:
         {
             str(item.get("name", "")).strip()
             for item in files
-            if str(item.get("status", "")).strip().lower() == "error" and str(item.get("name", "")).strip()
+            if str(item.get("status", "")).strip().lower() == "error"
+            and str(item.get("name", "")).strip()
         }
     )
 
@@ -175,8 +201,14 @@ def _normalize_solver(solver: str | None) -> str:
     return "yescaptcha"
 
 
-def _trigger_register(missing_count: int, *, config: CpaMaintenanceConfig, remaining_count: int) -> dict[str, Any]:
-    from api.tasks import RegisterTaskRequest, enqueue_register_task, has_active_register_task
+def _trigger_register(
+    missing_count: int, *, config: CpaMaintenanceConfig, remaining_count: int
+) -> dict[str, Any]:
+    from api.tasks import (
+        RegisterTaskRequest,
+        enqueue_register_task,
+        has_active_register_task,
+    )
 
     if has_active_register_task(platform="chatgpt", source=AUTO_REGISTER_SOURCE):
         print("[CPA] 已存在进行中的自动补注册任务，跳过本轮补注册")
@@ -188,9 +220,17 @@ def _trigger_register(missing_count: int, *, config: CpaMaintenanceConfig, remai
         count=missing_count,
         concurrency=config.concurrency,
         register_delay_seconds=config.register_delay_seconds,
-        executor_type=_normalize_executor(config_store.get("default_executor", "protocol")),
-        captcha_solver=_normalize_solver(config_store.get("default_captcha_solver", "yescaptcha")),
-        extra={},
+        executor_type=_normalize_executor(
+            config_store.get("default_executor", "protocol")
+        ),
+        captcha_solver=_normalize_solver(
+            config_store.get("default_captcha_solver", "yescaptcha")
+        ),
+        extra={
+            "chatgpt_registration_mode": config.chatgpt_registration_mode,
+            "chatgpt_has_refresh_token_solution": config.chatgpt_registration_mode
+            != CHATGPT_REGISTRATION_MODE_ACCESS_TOKEN_ONLY,
+        },
     )
     task_id = enqueue_register_task(
         req,
@@ -199,6 +239,7 @@ def _trigger_register(missing_count: int, *, config: CpaMaintenanceConfig, remai
             "remaining": remaining_count,
             "threshold": config.threshold,
             "missing": missing_count,
+            "chatgpt_registration_mode": config.chatgpt_registration_mode,
         },
     )
     print(
