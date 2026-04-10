@@ -82,8 +82,8 @@
 
 - Python 3.12+
 - Node.js 18+
-- Conda（推荐）
-- Windows（推荐直接使用仓库内启动脚本）
+- uv（推荐）
+- Windows（推荐使用 PowerShell + uv）
 
 ## ChatGPT 专项能力
 
@@ -148,32 +148,43 @@ Kiro 当前风控较严格，邮箱方案会显著影响成功率。当前项目
 
 ## 快速开始
 
-### 1. 创建并激活 Conda 环境
+### 1. 创建 Python 环境
 
 ```bash
-conda create -n any-auto-register python=3.12 -y
-conda activate any-auto-register
+uv venv --python 3.12
+```
+
+如需激活环境：
+
+```bash
+source .venv/bin/activate
+```
+
+Windows PowerShell：
+
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
 ### 2. 安装后端依赖
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ### 3. 安装浏览器相关依赖
 
 ```bash
-python -m playwright install chromium
-python -m camoufox fetch
+uv run python -m playwright install chromium
+uv run python -m camoufox fetch
 ```
 
 ### 4. 安装并构建前端
 
 ```bash
 cd frontend
-npm install
-npm run build
+pnpm install
+pnpm build
 cd ..
 ```
 
@@ -187,23 +198,14 @@ cd ..
 
 #### Windows 推荐方式
 
-PowerShell：
-
 ```powershell
-.\start_backend.ps1
-```
-
-CMD：
-
-```bat
-start_backend.bat
+uv run python main.py
 ```
 
 #### 手动启动
 
 ```bash
-conda activate any-auto-register
-python main.py
+uv run python main.py
 ```
 
 启动后默认访问：
@@ -212,7 +214,7 @@ python main.py
 http://localhost:8000
 ```
 
-> 如果你已经执行过 `npm run build`，前端会由 FastAPI 直接托管，因此访问的是 `8000`，不是 `5173`。
+> 如果你已经执行过 `pnpm build`，前端会由 FastAPI 直接托管，因此访问的是 `8000`，不是 `5173`。
 
 ## Windows 启动脚本说明
 
@@ -223,7 +225,7 @@ http://localhost:8000
 - `stop_backend.bat`
 - `stop_backend.ps1`
 
-这些脚本会强制使用 `any-auto-register` 环境启动/停止后端，可避免以下常见问题：
+这些脚本用于快速启动/停止后端，可避免以下常见问题：
 
 - 后端能启动，但 Solver 没有拉起
 - `ModuleNotFoundError: quart`
@@ -254,15 +256,15 @@ stop_backend.bat
 
 ### 终端 1：启动后端
 
-```powershell
-.\start_backend.ps1
+```bash
+uv run python main.py
 ```
 
 ### 终端 2：启动 Vite
 
 ```bash
 cd frontend
-npm run dev
+pnpm dev
 ```
 
 访问地址：
@@ -286,13 +288,12 @@ http://localhost:8889
 前端“全局配置 → 验证码 → Turnstile Solver”显示的是**后端检测结果**，因此：
 
 - 后端未启动 → 前端显示“未运行”
-- 后端已启动但不在正确 conda 环境 → Solver 可能启动失败
+- 后端已启动但不在正确 Python 环境 → Solver 可能启动失败
 
 ### 手动启动 Solver
 
 ```bash
-conda activate any-auto-register
-python services/turnstile_solver/start.py --browser_type camoufox --port 8889
+uv run python services/turnstile_solver/start.py --browser_type camoufox --port 8889
 ```
 
 ### Solver 日志
@@ -384,7 +385,7 @@ CAMOUFOX_VERSION=135.0.1 CAMOUFOX_RELEASE=beta.24 docker compose build app
 
 - 当前 Docker 镜像主要覆盖主应用和本地 Turnstile Solver
 - `grok2api`、`CLIProxyAPI`、`Kiro Account Manager` 的自动安装/拉起逻辑仍偏向宿主机环境
-- 若依赖 `conda`、Go 或 Windows 可执行文件，不建议直接在当前 Linux 容器中启动这些插件
+- 若依赖额外的 Python 运行环境、Go 或 Windows 可执行文件，不建议直接在当前 Linux 容器中启动这些插件
 - 如果你只需要 Web UI、账号管理、任务调度和本地 Solver，当前 Compose 配置可直接使用
 
 ## 插件与外部依赖
@@ -434,28 +435,24 @@ curl http://localhost:8000/api/solver/status
 
 ### 2. 出现 `ModuleNotFoundError: quart`
 
-说明当前启动后端的 Python 不是 `any-auto-register` 环境，请改用：
+说明当前启动后端的 Python 环境不正确，请改用：
 
-```powershell
-.\start_backend.ps1
+```bash
+uv run python main.py
 ```
 
-或：
-
-```bat
-start_backend.bat
-```
+或先确认依赖已经通过 `uv` 安装完成。
 
 ### 3. 如何确认当前 Python 是否正确
 
 ```bash
-python -c "import sys; print(sys.executable)"
+uv run python -c "import sys; print(sys.executable)"
 ```
 
 输出应类似：
 
 ```text
-D:\miniconda\conda3\envs\any-auto-register\python.exe
+.../.venv/bin/python
 ```
 
 ### 4. Solver 能打开，但状态仍然异常
@@ -479,8 +476,8 @@ http://localhost:8889/
 
 然后重新启动：
 
-```powershell
-.\start_backend.ps1
+```bash
+uv run python main.py
 ```
 
 ## 项目结构
